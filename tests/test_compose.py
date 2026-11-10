@@ -5,6 +5,7 @@ from pathlib import Path
 import pty
 import select
 import signal
+import sys
 import tempfile
 import time
 import unittest
@@ -36,7 +37,7 @@ else:
     if any("\\r" in arg for arg in args):
         sys.exit("Invalid carriage return in address/header")
 ''')
-            env = dict(os.environ, HIF_SCRIPT=str(HIF), TEST_FAKE=str(fake),
+            env = dict(os.environ, HIF_SCRIPT=str(HIF), TEST_PYTHON=sys.executable, TEST_FAKE=str(fake),
                        TEST_CAPTURE=str(capture), TEST_FIELDS=json.dumps(fields),
                        TEST_FILEFORMAT=fileformat, TMPDIR=str(root), VISUAL=str(editor),
                        EDITOR=str(editor))
@@ -52,7 +53,7 @@ else:
             if pid == 0:
                 os.execvpe("zsh", ["zsh", "-f", "-c", '''
 source "$HIF_SCRIPT"
-_hi() { /usr/bin/python3 "$TEST_FAKE" "$@"; }
+_hi() { "$TEST_PYTHON" "$TEST_FAKE" "$@"; }
 _pause() { :; }
 _compose reply inbox source-id
 '''], env)
