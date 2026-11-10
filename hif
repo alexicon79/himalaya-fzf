@@ -193,6 +193,11 @@ _compose() {
   local to cc bcc subject answer
   while true; do
     ${VISUAL:-${EDITOR:-vim}} -c 'set ft=mail' "$draft" < /dev/tty > /dev/tty
+    # Mail drafts may use CRLF; normalize before parsing headers and blank lines.
+    if ! sed $'s/\r$//' "$draft" > "$dir/normalized" || ! mv "$dir/normalized" "$draft"; then
+      echo "Failed to prepare draft, kept at $draft"
+      _pause; return 1
+    fi
     to=$(sed -n '1,/^$/s/^To: *//p' "$draft")
     cc=$(sed -n '1,/^$/s/^Cc: *//p' "$draft")
     bcc=$(sed -n '1,/^$/s/^Bcc: *//p' "$draft")
