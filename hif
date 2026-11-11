@@ -190,19 +190,31 @@ _compose() {
   jq -r '"To: \(.to | join(", "))\nCc: \(.cc | join(", "))\nBcc: \(.bcc | join(", "))\nSubject: \(.subject)\n\n\n\n\(.body | gsub("\r"; ""))"' \
     <<< "$fields" > "$draft"
 
-  local to cc bcc subject answer
+  local to cc bcc subject answer content line i
+  local -a lines
   while true; do
-    ${VISUAL:-${EDITOR:-vim}} -c 'set ft=mail' "$draft" < /dev/tty > /dev/tty
-    # Mail drafts may use CRLF; normalize before parsing headers and blank lines.
-    if ! sed $'s/\r$//' "$draft" > "$dir/normalized" || ! mv "$dir/normalized" "$draft"; then
-      echo "Failed to prepare draft, kept at $draft"
+    if ! ${VISUAL:-${EDITOR:-vim}} -c 'set ft=mail' "$draft" < /dev/tty > /dev/tty; then
+      echo "Editor exited with an error, draft kept at $draft"
       _pause; return 1
     fi
-    to=$(sed -n '1,/^$/s/^To: *//p' "$draft")
-    cc=$(sed -n '1,/^$/s/^Cc: *//p' "$draft")
-    bcc=$(sed -n '1,/^$/s/^Bcc: *//p' "$draft")
-    subject=$(sed -n '1,/^$/s/^Subject: *//p' "$draft")
-    sed '1,/^$/d' "$draft" > "$body"
+    # The editor may save CRLF or CR line endings; treat both as LF.
+    content=$(<"$draft")
+    content=${${content//$'\r\n'/$'\n'}//$'\r'/$'\n'}
+    lines=("${(@f)content}")
+    to= cc= bcc= subject=
+    # Headers end at the first blank (or whitespace-only) line.
+    for (( i = 1; i <= $#lines; i++ )); do
+      line=$lines[i]
+      [[ -z ${line//[[:space:]]/} ]] && break
+      [[ $line =~ '^(To|Cc|Bcc|Subject):[[:space:]]*(.*)' ]] || continue
+      case $match[1] in
+        To) to=$match[2] ;;
+        Cc) cc=$match[2] ;;
+        Bcc) bcc=$match[2] ;;
+        Subject) subject=$match[2] ;;
+      esac
+    done
+    print -r -- "${(F)lines[i+1,-1]}" > "$body"
     [[ -z "$to" ]] && echo "No recipient (To:) given."
     read -k1 "answer?Send to '$to'? [y]es / [e]dit / [N]o: "; echo
     case "$answer" in
